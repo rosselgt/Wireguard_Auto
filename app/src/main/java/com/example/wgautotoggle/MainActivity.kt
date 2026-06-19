@@ -153,14 +153,25 @@ class MainActivity : AppCompatActivity() {
         networkAdapter.submitList(trustedNetworksRepository.getAll())
     }
 
+    @Suppress("DEPRECATION")
     private fun getCurrentSsid(): String? {
         val cm = getSystemService(ConnectivityManager::class.java)
         val network = cm.activeNetwork ?: return null
         val caps = cm.getNetworkCapabilities(network) ?: return null
         if (!caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) return null
-        val info = caps.transportInfo as? WifiInfo ?: return null
-        val ssid = info.ssid ?: return null
-        if (ssid.isEmpty() || ssid == WifiManager.UNKNOWN_SSID) return null
+
+        // Su alcuni dispositivi (es. certi Samsung) il metodo "nuovo"
+        // (NetworkCapabilities.transportInfo) restituisce sempre
+        // <unknown ssid>: in quel caso usiamo il metodo "classico" di
+        // WifiManager, che su quei dispositivi funziona correttamente.
+        val fromCapabilities = (caps.transportInfo as? WifiInfo)?.ssid
+        val ssid = if (!fromCapabilities.isNullOrEmpty() && fromCapabilities != WifiManager.UNKNOWN_SSID) {
+            fromCapabilities
+        } else {
+            (getSystemService(WIFI_SERVICE) as? WifiManager)?.connectionInfo?.ssid
+        }
+
+        if (ssid.isNullOrEmpty() || ssid == WifiManager.UNKNOWN_SSID) return null
         return ssid.removePrefix("\"").removeSuffix("\"")
     }
 
