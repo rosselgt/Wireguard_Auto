@@ -78,21 +78,30 @@ class WifiMonitorService : Service() {
         val desired = if (isTrusted) Tunnel.State.DOWN else Tunnel.State.UP
 
         val label = when {
-            ssid != null && isTrusted -> "Rete fidata: $ssid -> WireGuard OFF"
-            ssid != null -> "Rete: $ssid -> WireGuard ON"
-            else -> "Nessuna rete Wi-Fi -> WireGuard ON"
+            ssid != null && isTrusted -> "Rete fidata: $ssid"
+            ssid != null -> "Rete: $ssid"
+            else -> "Nessuna rete Wi-Fi"
         }
-        updateNotification(label, desired == Tunnel.State.UP)
 
-        if (desired == lastAppliedState) return
-        if (!tunnelRepository.hasValidConfig()) return
+        if (desired == lastAppliedState) {
+            updateNotification(label, desired == Tunnel.State.UP)
+            return
+        }
+        if (!tunnelRepository.hasValidConfig()) {
+            updateNotification("$label (nessuna configurazione salvata)", false)
+            return
+        }
 
+        updateNotification("$label - applicazione in corso...", desired == Tunnel.State.UP)
         lastAppliedState = desired
         tunnelRepository.applyState(desired) { success, error ->
-            if (!success) {
+            if (success) {
+                updateNotification(label, desired == Tunnel.State.UP)
+            } else {
                 Log.e(TAG, "Impossibile impostare lo stato $desired: $error")
                 // Riprova al prossimo cambio di rete
                 lastAppliedState = null
+                updateNotification("$label - ERRORE: $error", false)
             }
         }
     }
