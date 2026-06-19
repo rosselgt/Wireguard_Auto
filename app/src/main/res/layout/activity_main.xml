@@ -69,6 +69,13 @@
             android:layout_marginTop="8dp"
             android:text="Rete attuale: -" />
 
+        <Button
+            android:id="@+id/diagnosticButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Diagnostica rilevamento Wi-Fi" />
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

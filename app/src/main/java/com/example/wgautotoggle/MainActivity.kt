@@ -1,6 +1,7 @@
 package com.example.wgautotoggle
 
 import android.content.pm.PackageManager
+import android.location.LocationManager
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.VpnService
@@ -14,6 +15,7 @@ import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -91,6 +93,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.useCurrentSsidButton).setOnClickListener { useCurrentSsid() }
         findViewById<Button>(R.id.manualUpButton).setOnClickListener { manualSetState(Tunnel.State.UP) }
         findViewById<Button>(R.id.manualDownButton).setOnClickListener { manualSetState(Tunnel.State.DOWN) }
+        findViewById<Button>(R.id.diagnosticButton).setOnClickListener { showDiagnostics() }
 
         val recyclerView = findViewById<RecyclerView>(R.id.networksRecyclerView)
         networkAdapter = NetworkAdapter(trustedNetworksRepository.getAll().toMutableList()) { ssid ->
@@ -141,7 +144,7 @@ class MainActivity : AppCompatActivity() {
         if (ssid == null) {
             Toast.makeText(
                 this,
-                "Nessuna rete Wi-Fi rilevata (controlla i permessi di posizione)",
+                "Nessuna rete Wi-Fi rilevata (usa il pulsante Diagnostica per capire perché)",
                 Toast.LENGTH_LONG
             ).show()
             return
@@ -159,6 +162,54 @@ class MainActivity : AppCompatActivity() {
         val ssid = info.ssid ?: return null
         if (ssid.isEmpty() || ssid == WifiManager.UNKNOWN_SSID) return null
         return ssid.removePrefix("\"").removeSuffix("\"")
+    }
+
+    /**
+     * Controlla uno per uno tutti i punti che possono impedire la lettura
+     * del nome della rete Wi-Fi, e mostra il risultato in un dialogo.
+     */
+    private fun showDiagnostics() {
+        val sb = StringBuilder()
+
+        val locationGranted = checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED
+        sb.append("1) Permesso posizione concesso all'app: ")
+        sb.append(if (locationGranted) "SÌ\n" else "NO ← da correggere\n")
+
+        val locationManager = getSystemService(LocationManager::class.java)
+        val locationEnabled = locationManager?.isLocationEnabled ?: false
+        sb.append("2) Posizione attiva nel sistema: ")
+        sb.append(if (locationEnabled) "SÌ\n" else "NO ← da correggere\n")
+
+        val cm = getSystemService(ConnectivityManager::class.java)
+        val network = cm.activeNetwork
+        sb.append("3) Rete attiva sul telefono: ")
+        sb.append(if (network != null) "presente\n" else "NESSUNA (Wi-Fi spento o non connesso)\n")
+
+        val caps = network?.let { cm.getNetworkCapabilities(it) }
+        val isWifi = caps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ?: false
+        sb.append("4) La rete attiva è Wi-Fi: ")
+        sb.append(if (isWifi) "SÌ\n" else "NO (probabilmente dati mobili)\n")
+
+        val info = caps?.transportInfo as? WifiInfo
+        sb.append("5) Dettagli Wi-Fi leggibili dal sistema: ")
+        sb.append(if (info != null) "SÌ\n" else "NO\n")
+
+        val rawSsid = info?.ssid
+        sb.append("6) Nome rete (SSID) restituito da Android: ")
+        sb.append(rawSsid ?: "(vuoto/null)")
+        if (rawSsid == WifiManager.UNKNOWN_SSID) {
+            sb.append("\n   → Android nasconde l'SSID: di solito significa che manca")
+            sb.append("\n     il permesso/posizione di cui ai punti 1-2, oppure che")
+            sb.append("\n     nelle impostazioni di Posizione la \"Scansione Wi-Fi\"")
+            sb.append("\n     è disattivata.")
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("Diagnostica rilevamento Wi-Fi")
+            .setMessage(sb.toString())
+            .setPositiveButton("OK", null)
+            .show()
     }
 
     private fun requestEnable() {
