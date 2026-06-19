@@ -1,0 +1,160 @@
+package com.example.wgautotoggle
+
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.app.Service
+import android.content.Context
+import android.content.Intent
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
+import android.net.wifi.WifiInfo
+import android.net.wifi.WifiManager
+import android.os.IBinder
+import android.util.Log
+import com.wireguard.android.backend.Tunnel
+
+/**
+ * Servizio in primo piano (foreground service) che resta in ascolto dei
+ * cambiamenti di rete tramite ConnectivityManager.NetworkCallback.
+ *
+ * Logica:
+ *  - se la rete Wi-Fi attuale è nella lista delle reti fidate -> tunnel DOWN
+ *  - in tutti gli altri casi (altra rete Wi-Fi, dati mobili, nessuna rete) -> tunnel UP
+ */
+class WifiMonitorService : Service() {
+
+    private lateinit var connectivityManager: ConnectivityManager
+    private lateinit var tunnelRepository: TunnelRepository
+    private lateinit var trustedNetworksRepository: TrustedNetworksRepository
+
+    private var lastAppliedState: Tunnel.State? = null
+    private var registered = false
+
+    private val networkCallback = object : ConnectivityManager.NetworkCallback() {
+        override fun onAvailable(network: Network) = evaluateAndApply()
+        override fun onLost(network: Network) = evaluateAndApply()
+        override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) = evaluateAndApply()
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        connectivityManager = getSystemService(ConnectivityManager::class.java)
+        tunnelRepository = TunnelRepository.getInstance(applicationContext)
+        trustedNetworksRepository = TrustedNetworksRepository(applicationContext)
+        startForeground(NOTIFICATION_ID, buildNotification("In attesa di una rete...", false))
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (!registered) {
+            val request = NetworkRequest.Builder()
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                .build()
+            connectivityManager.registerNetworkCallback(request, networkCallback)
+            registered = true
+        }
+        evaluateAndApply()
+        return START_STICKY
+    }
+
+    override fun onDestroy() {
+        if (registered) {
+            runCatching { connectivityManager.unregisterNetworkCallback(networkCallback) }
+            registered = false
+        }
+        super.onDestroy()
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    private fun evaluateAndApply() {
+        if (!tunnelRepository.isServiceEnabled()) return
+
+        val ssid = getCurrentWifiSsid()
+        val isTrusted = ssid != null && trustedNetworksRepository.isTrusted(ssid)
+        val desired = if (isTrusted) Tunnel.State.DOWN else Tunnel.State.UP
+
+        val label = when {
+            ssid != null && isTrusted -> "Rete fidata: $ssid -> WireGuard OFF"
+            ssid != null -> "Rete: $ssid -> WireGuard ON"
+            else -> "Nessuna rete Wi-Fi -> WireGuard ON"
+        }
+        updateNotification(label, desired == Tunnel.State.UP)
+
+        if (desired == lastAppliedState) return
+        if (!tunnelRepository.hasValidConfig()) return
+
+        lastAppliedState = desired
+        tunnelRepository.applyState(desired) { success, error ->
+            if (!success) {
+                Log.e(TAG, "Impossibile impostare lo stato $desired: $error")
+                // Riprova al prossimo cambio di rete
+                lastAppliedState = null
+            }
+        }
+    }
+
+    /**
+     * Legge l'SSID della rete Wi-Fi attualmente connessa.
+     * Richiede il permesso ACCESS_FINE_LOCATION concesso e la posizione
+     * attiva sul dispositivo: è una limitazione imposta da Android stesso,
+     * non da questa app.
+     */
+    private fun getCurrentWifiSsid(): String? {
+        val network = connectivityManager.activeNetwork ?: return null
+        val caps = connectivityManager.getNetworkCapabilities(network) ?: return null
+        if (!caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) return null
+        val info = caps.transportInfo as? WifiInfo ?: return null
+        val ssid = info.ssid ?: return null
+        if (ssid.isEmpty() || ssid == WifiManager.UNKNOWN_SSID) return null
+        return ssid.removePrefix("\"").removeSuffix("\"")
+    }
+
+    private fun buildNotification(text: String, vpnUp: Boolean): Notification {
+        val channelId = "wifi_monitor_channel"
+        val manager = getSystemService(NotificationManager::class.java)
+        if (manager.getNotificationChannel(channelId) == null) {
+            val channel = NotificationChannel(
+                channelId,
+                "Monitoraggio Wi-Fi / WireGuard",
+                NotificationManager.IMPORTANCE_LOW
+            )
+            manager.createNotificationChannel(channel)
+        }
+
+        val openAppIntent = PendingIntent.getActivity(
+            this, 0,
+            Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_IMMUTABLE
+        )
+
+        return Notification.Builder(this, channelId)
+            .setContentTitle(if (vpnUp) "WireGuard attivo" else "WireGuard disattivato")
+            .setContentText(text)
+            .setSmallIcon(android.R.drawable.stat_sys_warning)
+            .setContentIntent(openAppIntent)
+            .setOngoing(true)
+            .build()
+    }
+
+    private fun updateNotification(text: String, vpnUp: Boolean) {
+        val manager = getSystemService(NotificationManager::class.java)
+        manager.notify(NOTIFICATION_ID, buildNotification(text, vpnUp))
+    }
+
+    companion object {
+        private const val TAG = "WifiMonitorService"
+        private const val NOTIFICATION_ID = 42
+
+        fun start(context: Context) {
+            context.startForegroundService(Intent(context, WifiMonitorService::class.java))
+        }
+
+        fun stop(context: Context) {
+            context.stopService(Intent(context, WifiMonitorService::class.java))
+        }
+    }
+}
