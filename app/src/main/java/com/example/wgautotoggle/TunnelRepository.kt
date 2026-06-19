@@ -55,6 +55,10 @@ class TunnelRepository private constructor(context: Context) {
         prefs.edit().putBoolean(KEY_ENABLED, enabled).apply()
     }
 
+    @Volatile
+    var lastError: String? = null
+        private set
+
     /**
      * Porta il tunnel UP o DOWN. Esegue il lavoro su un thread in background
      * perché le chiamate al backend sono bloccanti (operazioni di rete/JNI).
@@ -64,10 +68,12 @@ class TunnelRepository private constructor(context: Context) {
             try {
                 val config = if (state == Tunnel.State.UP) buildConfig() else null
                 backend.setState(tunnel, state, config)
+                lastError = null
                 onResult(true, null)
             } catch (e: Exception) {
                 Log.e(TAG, "Errore applicando stato $state", e)
-                onResult(false, e.message)
+                lastError = e.message ?: e.toString()
+                onResult(false, lastError)
             }
         }
     }
