@@ -284,18 +284,31 @@ class MainActivity : AppCompatActivity() {
                 return
             }
         }
-        tunnelRepository.applyState(state) { _, _ ->
-            runOnUiThread { updateStatus() }
+        tunnelRepository.applyState(state) { success, error ->
+            runOnUiThread {
+                if (success) {
+                    val label = if (state == Tunnel.State.UP) "attivato" else "disattivato"
+                    Toast.makeText(this, "Tunnel $label correttamente", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this, "Errore nell'attivare il tunnel: $error", Toast.LENGTH_LONG).show()
+                }
+                updateStatus()
+            }
         }
     }
 
     private fun updateStatus() {
         val ssid = getCurrentSsid()
         val trusted = ssid != null && trustedNetworksRepository.isTrusted(ssid)
-        statusText.text = when {
-            ssid != null && trusted -> "Rete attuale: $ssid (fidata -> WireGuard OFF)"
-            ssid != null -> "Rete attuale: $ssid (non fidata -> WireGuard ON)"
+        val networkLine = when {
+            ssid != null && trusted -> "Rete attuale: $ssid (fidata -> dovrebbe essere OFF)"
+            ssid != null -> "Rete attuale: $ssid (non fidata -> dovrebbe essere ON)"
             else -> "Rete attuale: nessuna rete Wi-Fi"
         }
+        val realState = tunnelRepository.currentState()
+        val realLine = "\nStato reale del tunnel: " +
+            if (realState == Tunnel.State.UP) "ATTIVO ✓" else "NON attivo"
+        val errorLine = tunnelRepository.lastError?.let { "\nUltimo errore: $it" } ?: ""
+        statusText.text = networkLine + realLine + errorLine
     }
 }
