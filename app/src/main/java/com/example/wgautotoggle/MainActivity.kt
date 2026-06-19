@@ -196,13 +196,20 @@ class MainActivity : AppCompatActivity() {
         sb.append(if (info != null) "SÌ\n" else "NO\n")
 
         val rawSsid = info?.ssid
-        sb.append("6) Nome rete (SSID) restituito da Android: ")
+        sb.append("6) Nome rete (SSID) - metodo nuovo (ConnectivityManager): ")
         sb.append(rawSsid ?: "(vuoto/null)")
-        if (rawSsid == WifiManager.UNKNOWN_SSID) {
-            sb.append("\n   → Android nasconde l'SSID: di solito significa che manca")
-            sb.append("\n     il permesso/posizione di cui ai punti 1-2, oppure che")
-            sb.append("\n     nelle impostazioni di Posizione la \"Scansione Wi-Fi\"")
-            sb.append("\n     è disattivata.")
+        sb.append("\n")
+
+        @Suppress("DEPRECATION")
+        val legacySsid = (getSystemService(WIFI_SERVICE) as? WifiManager)?.connectionInfo?.ssid
+        sb.append("7) Nome rete (SSID) - metodo classico (WifiManager): ")
+        sb.append(legacySsid ?: "(vuoto/null)")
+
+        if (rawSsid == WifiManager.UNKNOWN_SSID || legacySsid == WifiManager.UNKNOWN_SSID) {
+            sb.append("\n\n→ Se uno dei due mostra ancora <unknown ssid> ma l'altro")
+            sb.append("\n  mostra il nome vero della rete, vuol dire che su questo")
+            sb.append("\n  telefono funziona solo uno dei due metodi: lo segnalo")
+            sb.append("\n  e aggiorno l'app per usare quello che funziona.")
         }
 
         AlertDialog.Builder(this)
