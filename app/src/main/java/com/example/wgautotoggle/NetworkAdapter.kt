@@ -3,7 +3,6 @@ package com.example.wgautotoggle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Button
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 
@@ -14,7 +13,7 @@ class NetworkAdapter(
 
     class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val ssidText: TextView = view.findViewById(R.id.ssidText)
-        val removeButton: Button = view.findViewById(R.id.removeButton)
+        val removeButton: TextView = view.findViewById(R.id.removeButton)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, position: Int): ViewHolder {

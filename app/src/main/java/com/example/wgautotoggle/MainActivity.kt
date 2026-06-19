@@ -1,6 +1,8 @@
 package com.example.wgautotoggle
 
 import android.content.pm.PackageManager
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.location.LocationManager
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
@@ -9,6 +11,7 @@ import android.net.wifi.WifiInfo
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Bundle
+import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.Switch
@@ -17,6 +20,7 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.wireguard.android.backend.Tunnel
@@ -32,6 +36,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var configEditText: EditText
     private lateinit var enabledSwitch: Switch
     private lateinit var statusText: TextView
+    private lateinit var statusTitle: TextView
+    private lateinit var statusDot: View
     private lateinit var ssidEditText: EditText
 
     private val vpnPermissionLauncher = registerForActivityResult(
@@ -80,10 +86,26 @@ class MainActivity : AppCompatActivity() {
         configEditText = findViewById(R.id.configEditText)
         enabledSwitch = findViewById(R.id.enabledSwitch)
         statusText = findViewById(R.id.statusText)
+        statusTitle = findViewById(R.id.statusTitle)
+        statusDot = findViewById(R.id.statusDot)
         ssidEditText = findViewById(R.id.ssidEditText)
+
+        applyStyling()
 
         configEditText.setText(tunnelRepository.getConfigText().orEmpty())
         enabledSwitch.isChecked = tunnelRepository.isServiceEnabled()
+
+        val configSection = findViewById<View>(R.id.configSection)
+        val configArrow = findViewById<TextView>(R.id.configToggleArrow)
+        if (!tunnelRepository.hasValidConfig()) {
+            configSection.visibility = View.VISIBLE
+            configArrow.text = "▾"
+        }
+        findViewById<View>(R.id.configHeader).setOnClickListener {
+            val expanded = configSection.visibility == View.VISIBLE
+            configSection.visibility = if (expanded) View.GONE else View.VISIBLE
+            configArrow.text = if (expanded) "▸" else "▾"
+        }
 
         findViewById<Button>(R.id.saveConfigButton).setOnClickListener { saveConfig() }
         findViewById<Button>(R.id.importConfigButton).setOnClickListener {
@@ -93,7 +115,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.useCurrentSsidButton).setOnClickListener { useCurrentSsid() }
         findViewById<Button>(R.id.manualUpButton).setOnClickListener { manualSetState(Tunnel.State.UP) }
         findViewById<Button>(R.id.manualDownButton).setOnClickListener { manualSetState(Tunnel.State.DOWN) }
-        findViewById<Button>(R.id.diagnosticButton).setOnClickListener { showDiagnostics() }
+        findViewById<TextView>(R.id.diagnosticButton).setOnClickListener { showDiagnostics() }
 
         val recyclerView = findViewById<RecyclerView>(R.id.networksRecyclerView)
         networkAdapter = NetworkAdapter(trustedNetworksRepository.getAll().toMutableList()) { ssid ->
@@ -114,6 +136,54 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         updateStatus()
     }
+
+    // ---- Stile (sfondi arrotondati creati a runtime, niente drawable XML) ----
+
+    private fun pill(colorRes: Int, radiusDp: Float): GradientDrawable {
+        val density = resources.displayMetrics.density
+        return GradientDrawable().apply {
+            cornerRadius = radiusDp * density
+            setColor(ContextCompat.getColor(this@MainActivity, colorRes))
+        }
+    }
+
+    private fun outlineBackground(strokeColorRes: Int, radiusDp: Float): GradientDrawable {
+        val density = resources.displayMetrics.density
+        return GradientDrawable().apply {
+            cornerRadius = radiusDp * density
+            setStroke((1.2f * density).toInt(), ContextCompat.getColor(this@MainActivity, strokeColorRes))
+            setColor(Color.TRANSPARENT)
+        }
+    }
+
+    private fun applyStyling() {
+        findViewById<View>(R.id.statusCard).background = pill(R.color.bg_surface, 18f)
+        findViewById<View>(R.id.switchCard).background = pill(R.color.bg_surface, 18f)
+        findViewById<View>(R.id.networksCard).background = pill(R.color.bg_surface, 18f)
+        findViewById<View>(R.id.configSection).background = pill(R.color.bg_surface, 18f)
+
+        statusDot.background = GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(ContextCompat.getColor(this@MainActivity, R.color.accent_idle))
+        }
+
+        findViewById<EditText>(R.id.ssidEditText).background = pill(R.color.bg_surface_alt, 10f)
+        findViewById<EditText>(R.id.configEditText).background = pill(R.color.bg_surface_alt, 10f)
+
+        findViewById<Button>(R.id.saveConfigButton).apply {
+            background = pill(R.color.accent_protected, 12f)
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.bg_base))
+        }
+        findViewById<Button>(R.id.addSsidButton).apply {
+            background = pill(R.color.accent_protected, 10f)
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.bg_base))
+        }
+
+        listOf(R.id.manualUpButton, R.id.manualDownButton, R.id.useCurrentSsidButton, R.id.importConfigButton)
+            .forEach { id -> findViewById<Button>(id).background = outlineBackground(R.color.divider, 12f) }
+    }
+
+    // ---- Logica (invariata rispetto alla versione precedente) ----
 
     private fun saveConfig() {
         val text = configEditText.text.toString()
@@ -144,7 +214,7 @@ class MainActivity : AppCompatActivity() {
         if (ssid == null) {
             Toast.makeText(
                 this,
-                "Nessuna rete Wi-Fi rilevata (usa il pulsante Diagnostica per capire perché)",
+                "Nessuna rete Wi-Fi rilevata (usa 'Diagnostica' per capire perché)",
                 Toast.LENGTH_LONG
             ).show()
             return
@@ -160,10 +230,6 @@ class MainActivity : AppCompatActivity() {
         val caps = cm.getNetworkCapabilities(network) ?: return null
         if (!caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) return null
 
-        // Su alcuni dispositivi (es. certi Samsung) il metodo "nuovo"
-        // (NetworkCapabilities.transportInfo) restituisce sempre
-        // <unknown ssid>: in quel caso usiamo il metodo "classico" di
-        // WifiManager, che su quei dispositivi funziona correttamente.
         val fromCapabilities = (caps.transportInfo as? WifiInfo)?.ssid
         val ssid = if (!fromCapabilities.isNullOrEmpty() && fromCapabilities != WifiManager.UNKNOWN_SSID) {
             fromCapabilities
@@ -175,10 +241,7 @@ class MainActivity : AppCompatActivity() {
         return ssid.removePrefix("\"").removeSuffix("\"")
     }
 
-    /**
-     * Controlla uno per uno tutti i punti che possono impedire la lettura
-     * del nome della rete Wi-Fi, e mostra il risultato in un dialogo.
-     */
+    @Suppress("DEPRECATION")
     private fun showDiagnostics() {
         val sb = StringBuilder()
 
@@ -207,21 +270,13 @@ class MainActivity : AppCompatActivity() {
         sb.append(if (info != null) "SÌ\n" else "NO\n")
 
         val rawSsid = info?.ssid
-        sb.append("6) Nome rete (SSID) - metodo nuovo (ConnectivityManager): ")
+        sb.append("6) SSID - metodo nuovo: ")
         sb.append(rawSsid ?: "(vuoto/null)")
         sb.append("\n")
 
-        @Suppress("DEPRECATION")
         val legacySsid = (getSystemService(WIFI_SERVICE) as? WifiManager)?.connectionInfo?.ssid
-        sb.append("7) Nome rete (SSID) - metodo classico (WifiManager): ")
+        sb.append("7) SSID - metodo classico: ")
         sb.append(legacySsid ?: "(vuoto/null)")
-
-        if (rawSsid == WifiManager.UNKNOWN_SSID || legacySsid == WifiManager.UNKNOWN_SSID) {
-            sb.append("\n\n→ Se uno dei due mostra ancora <unknown ssid> ma l'altro")
-            sb.append("\n  mostra il nome vero della rete, vuol dire che su questo")
-            sb.append("\n  telefono funziona solo uno dei due metodi: lo segnalo")
-            sb.append("\n  e aggiorno l'app per usare quello che funziona.")
-        }
 
         AlertDialog.Builder(this)
             .setTitle("Diagnostica rilevamento Wi-Fi")
@@ -290,7 +345,7 @@ class MainActivity : AppCompatActivity() {
                     val label = if (state == Tunnel.State.UP) "attivato" else "disattivato"
                     Toast.makeText(this, "Tunnel $label correttamente", Toast.LENGTH_SHORT).show()
                 } else {
-                    Toast.makeText(this, "Errore nell'attivare il tunnel: $error", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this, "Errore: $error", Toast.LENGTH_LONG).show()
                 }
                 updateStatus()
             }
@@ -300,15 +355,24 @@ class MainActivity : AppCompatActivity() {
     private fun updateStatus() {
         val ssid = getCurrentSsid()
         val trusted = ssid != null && trustedNetworksRepository.isTrusted(ssid)
-        val networkLine = when {
-            ssid != null && trusted -> "Rete attuale: $ssid (fidata -> dovrebbe essere OFF)"
-            ssid != null -> "Rete attuale: $ssid (non fidata -> dovrebbe essere ON)"
-            else -> "Rete attuale: nessuna rete Wi-Fi"
-        }
         val realState = tunnelRepository.currentState()
-        val realLine = "\nStato reale del tunnel: " +
-            if (realState == Tunnel.State.UP) "ATTIVO ✓" else "NON attivo"
-        val errorLine = tunnelRepository.lastError?.let { "\nUltimo errore: $it" } ?: ""
-        statusText.text = networkLine + realLine + errorLine
+        val serviceEnabled = tunnelRepository.isServiceEnabled()
+        val error = tunnelRepository.lastError
+
+        val title: String
+        val colorRes: Int
+        when {
+            !serviceEnabled -> { title = "DISATTIVATO"; colorRes = R.color.accent_idle }
+            error != null -> { title = "ERRORE"; colorRes = R.color.accent_error }
+            realState == Tunnel.State.UP -> { title = "PROTETTO"; colorRes = R.color.accent_protected }
+            trusted -> { title = "RETE FIDATA"; colorRes = R.color.accent_idle }
+            else -> { title = "IN ATTESA"; colorRes = R.color.accent_warning }
+        }
+        statusTitle.text = title
+        (statusDot.background as? GradientDrawable)?.setColor(ContextCompat.getColor(this, colorRes))
+
+        val ssidLine = ssid?.let { "Rete: $it" + if (trusted) " (fidata)" else "" } ?: "Nessuna rete Wi-Fi"
+        val errorLine = error?.let { "\nErrore: $it" } ?: ""
+        statusText.text = ssidLine + errorLine
     }
 }

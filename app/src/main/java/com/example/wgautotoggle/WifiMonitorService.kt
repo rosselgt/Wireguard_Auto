@@ -152,7 +152,7 @@ class WifiMonitorService : Service() {
         )
 
         return Notification.Builder(this, channelId)
-            .setContentTitle(if (vpnUp) "WireGuard attivo" else "WireGuard disattivato")
+            .setContentTitle(if (vpnUp) "RosselGT-WG attivo" else "RosselGT-WG disattivato")
             .setContentText(text)
             .setSmallIcon(android.R.drawable.stat_sys_warning)
             .setContentIntent(openAppIntent)

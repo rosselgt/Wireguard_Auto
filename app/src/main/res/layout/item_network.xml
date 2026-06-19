@@ -3,8 +3,8 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="horizontal"
-    android:paddingTop="6dp"
-    android:paddingBottom="6dp"
+    android:paddingTop="10dp"
+    android:paddingBottom="10dp"
     android:gravity="center_vertical">
 
     <TextView
@@ -12,12 +12,20 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
-        android:textSize="15sp" />
+        android:textColor="@color/text_primary"
+        android:fontFamily="monospace"
+        android:textSize="14sp" />
 
-    <Button
+    <TextView
         android:id="@+id/removeButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Rimuovi" />
+        android:text="Rimuovi"
+        android:textColor="@color/accent_error"
+        android:textSize="13sp"
+        android:padding="8dp"
+        android:clickable="true"
+        android:focusable="true"
+        android:foreground="?attr/selectableItemBackground" />
 
 </LinearLayout>

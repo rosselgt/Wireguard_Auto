@@ -1,150 +1,284 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="@color/bg_base">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="16dp">
+        android:padding="20dp">
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Configurazione WireGuard (wg-quick)"
-            android:textStyle="bold"
-            android:textSize="16sp" />
-
-        <EditText
-            android:id="@+id/configEditText"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:gravity="top|start"
-            android:minLines="6"
-            android:inputType="textMultiLine"
-            android:fontFamily="monospace"
-            android:hint="[Interface]\nPrivateKey = ...\nAddress = ...\n\n[Peer]\nPublicKey = ...\nEndpoint = ...\nAllowedIPs = 0.0.0.0/0" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:orientation="horizontal">
-
-            <Button
-                android:id="@+id/saveConfigButton"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Salva configurazione" />
-
-            <Button
-                android:id="@+id/importConfigButton"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginStart="8dp"
-                android:text="Importa file .conf" />
-        </LinearLayout>
-
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:layout_marginTop="20dp"
-            android:background="#CCCCCC" />
-
-        <Switch
-            android:id="@+id/enabledSwitch"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="Servizio attivo (monitora il Wi-Fi)" />
+            android:text="RosselGT-WG"
+            android:textColor="@color/text_primary"
+            android:textSize="22sp"
+            android:fontFamily="sans-serif-medium" />
 
         <TextView
-            android:id="@+id/statusText"
-            android:layout_width="match_parent"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="Rete attuale: -" />
+            android:layout_marginTop="2dp"
+            android:layout_marginBottom="20dp"
+            android:text="WireGuard automatico in base alla rete Wi-Fi"
+            android:textColor="@color/text_secondary"
+            android:textSize="13sp" />
 
-        <Button
-            android:id="@+id/diagnosticButton"
+        <!-- Card di stato -->
+        <LinearLayout
+            android:id="@+id/statusCard"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="Diagnostica rilevamento Wi-Fi" />
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:padding="18dp"
+            android:elevation="3dp">
+
+            <View
+                android:id="@+id/statusDot"
+                android:layout_width="14dp"
+                android:layout_height="14dp" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="14dp"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/statusTitle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="STATO"
+                    android:textColor="@color/text_primary"
+                    android:textSize="16sp"
+                    android:fontFamily="sans-serif-medium" />
+
+                <TextView
+                    android:id="@+id/statusText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="Rete attuale: -"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="13sp"
+                    android:fontFamily="monospace" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Interruttore principale -->
+        <LinearLayout
+            android:id="@+id/switchCard"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:padding="18dp"
+            android:layout_marginTop="14dp">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Servizio attivo"
+                android:textColor="@color/text_primary"
+                android:textSize="15sp"
+                android:fontFamily="sans-serif-medium" />
+
+            <Switch
+                android:id="@+id/enabledSwitch"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:orientation="horizontal">
+            android:orientation="horizontal"
+            android:layout_marginTop="10dp">
 
             <Button
                 android:id="@+id/manualUpButton"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="Attiva ora" />
+                android:text="Attiva ora"
+                android:textAllCaps="false"
+                android:textColor="@color/text_primary"
+                android:foreground="?attr/selectableItemBackground" />
 
             <Button
                 android:id="@+id/manualDownButton"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:layout_marginStart="8dp"
-                android:text="Disattiva ora" />
+                android:layout_marginStart="10dp"
+                android:text="Disattiva ora"
+                android:textAllCaps="false"
+                android:textColor="@color/text_primary"
+                android:foreground="?attr/selectableItemBackground" />
         </LinearLayout>
 
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:layout_marginTop="20dp"
-            android:background="#CCCCCC" />
-
+        <!-- Reti fidate -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="Reti Wi-Fi fidate (qui WireGuard si disattiva)"
-            android:textStyle="bold"
-            android:textSize="16sp" />
+            android:layout_marginTop="28dp"
+            android:text="RETI FIDATE"
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp"
+            android:letterSpacing="0.08"
+            android:fontFamily="sans-serif-medium" />
 
         <LinearLayout
+            android:id="@+id/networksCard"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:orientation="horizontal">
+            android:orientation="vertical"
+            android:padding="16dp"
+            android:layout_marginTop="8dp">
 
-            <EditText
-                android:id="@+id/ssidEditText"
-                android:layout_width="0dp"
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:hint="Nome rete (SSID)" />
+                android:orientation="horizontal">
+
+                <EditText
+                    android:id="@+id/ssidEditText"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:padding="12dp"
+                    android:hint="Nome rete (SSID)"
+                    android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_secondary" />
+
+                <Button
+                    android:id="@+id/addSsidButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:text="Aggiungi"
+                    android:textAllCaps="false"
+                    android:foreground="?attr/selectableItemBackground" />
+            </LinearLayout>
 
             <Button
-                android:id="@+id/addSsidButton"
-                android:layout_width="wrap_content"
+                android:id="@+id/useCurrentSsidButton"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:text="Aggiungi" />
+                android:layout_marginTop="10dp"
+                android:text="+ Aggiungi rete attuale"
+                android:textAllCaps="false"
+                android:textColor="@color/text_primary"
+                android:foreground="?attr/selectableItemBackground" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/networksRecyclerView"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp" />
         </LinearLayout>
 
-        <Button
-            android:id="@+id/useCurrentSsidButton"
+        <!-- Configurazione (richiudibile: si usa solo all'inizio) -->
+        <LinearLayout
+            android:id="@+id/configHeader"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="Aggiungi rete Wi-Fi attuale" />
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="28dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:foreground="?attr/selectableItemBackground">
 
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/networksRecyclerView"
+            <TextView
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="CONFIGURAZIONE WIREGUARD"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp"
+                android:letterSpacing="0.08"
+                android:fontFamily="sans-serif-medium" />
+
+            <TextView
+                android:id="@+id/configToggleArrow"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="▸"
+                android:textColor="@color/text_secondary"
+                android:textSize="14sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/configSection"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp" />
+            android:orientation="vertical"
+            android:padding="16dp"
+            android:layout_marginTop="8dp"
+            android:visibility="gone">
+
+            <EditText
+                android:id="@+id/configEditText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="top|start"
+                android:minLines="6"
+                android:inputType="textMultiLine"
+                android:fontFamily="monospace"
+                android:textSize="12sp"
+                android:padding="12dp"
+                android:textColor="@color/text_primary"
+                android:textColorHint="@color/text_secondary"
+                android:hint="[Interface]\nPrivateKey = ...\nAddress = ...\n\n[Peer]\nPublicKey = ...\nEndpoint = ...\nAllowedIPs = 0.0.0.0/0" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/saveConfigButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Salva"
+                    android:textAllCaps="false"
+                    android:foreground="?attr/selectableItemBackground" />
+
+                <Button
+                    android:id="@+id/importConfigButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="8dp"
+                    android:text="Importa file"
+                    android:textAllCaps="false"
+                    android:textColor="@color/text_primary"
+                    android:foreground="?attr/selectableItemBackground" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/diagnosticButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="28dp"
+            android:text="Diagnostica rilevamento Wi-Fi"
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp"
+            android:padding="10dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:foreground="?attr/selectableItemBackground" />
 
     </LinearLayout>
 </ScrollView>
