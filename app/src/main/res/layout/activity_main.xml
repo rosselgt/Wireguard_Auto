@@ -274,6 +274,16 @@
                 android:textAllCaps="false"
                 android:textColor="@color/text_primary"
                 android:foreground="?attr/selectableItemBackground" />
+
+            <Button
+                android:id="@+id/excludeAppsButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="👤 Escludi app dal VPN"
+                android:textAllCaps="false"
+                android:textColor="@color/text_primary"
+                android:foreground="?attr/selectableItemBackground" />
         </LinearLayout>
 
         <!-- Risparmio energetico -->

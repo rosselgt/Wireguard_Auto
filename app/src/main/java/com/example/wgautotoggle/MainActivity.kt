@@ -140,6 +140,9 @@ class MainActivity : AppCompatActivity() {
             openConfigLauncher.launch("*/*")
         }
         findViewById<Button>(R.id.scanQrButton).setOnClickListener { scanQrCode() }
+        findViewById<Button>(R.id.excludeAppsButton).setOnClickListener {
+            startActivity(Intent(this, AppExclusionActivity::class.java))
+        }
         findViewById<Button>(R.id.addSsidButton).setOnClickListener { addSsidFromInput() }
         findViewById<Button>(R.id.useCurrentSsidButton).setOnClickListener { useCurrentSsid() }
         findViewById<Button>(R.id.manualUpButton).setOnClickListener { manualSetState(Tunnel.State.UP) }
@@ -244,7 +247,7 @@ class MainActivity : AppCompatActivity() {
 
         listOf(
             R.id.manualUpButton, R.id.manualDownButton, R.id.useCurrentSsidButton,
-            R.id.importConfigButton, R.id.scanQrButton, R.id.openAppSettingsButton
+            R.id.importConfigButton, R.id.scanQrButton, R.id.openAppSettingsButton, R.id.excludeAppsButton
         ).forEach { id -> findViewById<Button>(id).background = outlineBackground(R.color.divider, 12f) }
     }
 

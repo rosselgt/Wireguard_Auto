@@ -55,6 +55,90 @@ class TunnelRepository private constructor(context: Context) {
         prefs.edit().putBoolean(KEY_ENABLED, enabled).apply()
     }
 
+    /**
+     * Legge i nomi dei pacchetti elencati nella riga "ExcludedApplications"
+     * dentro la sezione [Interface] della configurazione salvata.
+     */
+    fun getExcludedApplications(): Set<String> {
+        val text = getConfigText() ?: return emptySet()
+        return readExcludedApplications(text)
+    }
+
+    /**
+     * Aggiorna la riga "ExcludedApplications" dentro la sezione [Interface]
+     * della configurazione salvata (la crea se non c'è, la rimuove se
+     * l'insieme è vuoto) e salva il risultato, solo se resta un config
+     * valido (con un controllo Config.parse prima di salvare).
+     */
+    fun setExcludedApplications(packages: Set<String>): Boolean {
+        val current = getConfigText() ?: return false
+        val updated = writeExcludedApplications(current, packages)
+        return runCatching {
+            Config.parse(ByteArrayInputStream(updated.toByteArray(Charsets.UTF_8)))
+        }.onSuccess {
+            saveConfigText(updated)
+        }.isSuccess
+    }
+
+    private fun readExcludedApplications(configText: String): Set<String> {
+        var inInterface = false
+        for (rawLine in configText.lines()) {
+            val trimmed = rawLine.trim()
+            when {
+                trimmed.equals("[Interface]", ignoreCase = true) -> inInterface = true
+                trimmed.startsWith("[") && trimmed.endsWith("]") -> inInterface = false
+                inInterface -> {
+                    val parts = trimmed.split("=", limit = 2)
+                    if (parts.size == 2 && parts[0].trim().equals("ExcludedApplications", ignoreCase = true)) {
+                        return parts[1].split(",")
+                            .map { it.trim() }
+                            .filter { it.isNotEmpty() }
+                            .toSet()
+                    }
+                }
+            }
+        }
+        return emptySet()
+    }
+
+    private fun writeExcludedApplications(configText: String, packages: Set<String>): String {
+        val lines = configText.lines().toMutableList()
+
+        var interfaceStart = -1
+        var interfaceEnd = lines.size
+        for (i in lines.indices) {
+            val trimmed = lines[i].trim()
+            if (trimmed.equals("[Interface]", ignoreCase = true)) {
+                interfaceStart = i
+            } else if (interfaceStart != -1 && i > interfaceStart && trimmed.startsWith("[") && trimmed.endsWith("]")) {
+                interfaceEnd = i
+                break
+            }
+        }
+        // Nessuna sezione [Interface]: non possiamo inserire in modo sicuro,
+        // restituiamo il testo originale senza modifiche.
+        if (interfaceStart == -1) return configText
+
+        var existingLineIndex = -1
+        for (i in interfaceStart + 1 until interfaceEnd) {
+            val key = lines[i].trim().split("=", limit = 2).getOrNull(0)?.trim()
+            if (key?.equals("ExcludedApplications", ignoreCase = true) == true) {
+                existingLineIndex = i
+                break
+            }
+        }
+        if (existingLineIndex != -1) {
+            lines.removeAt(existingLineIndex)
+            if (existingLineIndex < interfaceEnd) interfaceEnd--
+        }
+
+        if (packages.isNotEmpty()) {
+            lines.add(interfaceEnd, "ExcludedApplications = " + packages.joinToString(", "))
+        }
+
+        return lines.joinToString("\n")
+    }
+
     @Volatile
     var lastError: String? = null
         private set
