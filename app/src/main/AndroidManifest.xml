@@ -19,6 +19,10 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
+        <!-- Android Auto: non ha un'icona di avvio normale, ma la
+             dichiariamo per nome così la vediamo comunque senza dover
+             chiedere visibilità su tutte le app installate -->
+        <package android:name="com.google.android.projection.gearhead" />
     </queries>
 
     <application

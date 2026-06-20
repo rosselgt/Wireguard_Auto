@@ -45,6 +45,58 @@
         android:textColor="@color/text_secondary"
         android:textSize="13sp" />
 
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="6dp"
+        android:text="Alcune app di sistema (es. Android Auto) non hanno un'icona normale: aggiungile scrivendo il loro nome esatto."
+        android:textColor="@color/text_secondary"
+        android:textSize="12sp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="8dp">
+
+        <EditText
+            android:id="@+id/manualPackageEditText"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:padding="12dp"
+            android:hint="com.esempio.app"
+            android:textColor="@color/text_primary"
+            android:textColorHint="@color/text_secondary"
+            android:fontFamily="monospace"
+            android:textSize="13sp" />
+
+        <Button
+            android:id="@+id/manualAddButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="Aggiungi"
+            android:textAllCaps="false"
+            android:foreground="?attr/selectableItemBackground" />
+    </LinearLayout>
+
+    <Button
+        android:id="@+id/addAndroidAutoButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="14dp"
+        android:text="+ Android Auto"
+        android:textAllCaps="false"
+        android:textColor="@color/text_primary"
+        android:foreground="?attr/selectableItemBackground" />
+
     <EditText
         android:id="@+id/searchEditText"
         android:layout_width="match_parent"

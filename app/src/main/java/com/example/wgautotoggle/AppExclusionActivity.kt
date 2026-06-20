@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.View
+import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
@@ -36,6 +37,21 @@ class AppExclusionActivity : AppCompatActivity() {
                 applyFilter(s?.toString().orEmpty())
             }
         })
+
+        val manualPackageEditText = findViewById<EditText>(R.id.manualPackageEditText)
+        manualPackageEditText.background = UiStyle.pill(this, R.color.bg_surface_alt, 10f)
+        findViewById<Button>(R.id.manualAddButton).setOnClickListener {
+            val pkg = manualPackageEditText.text.toString().trim()
+            if (pkg.isEmpty()) {
+                Toast.makeText(this, "Scrivi il nome del pacchetto", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            addManualPackage(pkg)
+            manualPackageEditText.setText("")
+        }
+        findViewById<Button>(R.id.addAndroidAutoButton).setOnClickListener {
+            addManualPackage("com.google.android.projection.gearhead")
+        }
 
         adapter = AppListAdapter { entry, isExcluded -> onToggle(entry, isExcluded) }
         val recyclerView = findViewById<RecyclerView>(R.id.appListRecyclerView)
@@ -82,6 +98,43 @@ class AppExclusionActivity : AppCompatActivity() {
             }
         }
         adapter.submitList(filtered)
+    }
+
+    /**
+     * Aggiunge un'app per nome esatto del pacchetto, anche se non compare
+     * tra le app con un'icona normale (es. Android Auto). Per escludere
+     * un'app dal tunnel serve solo il suo nome: l'icona/etichetta è solo
+     * un bonus estetico, recuperato se il sistema ce lo permette.
+     */
+    private fun addManualPackage(pkg: String) {
+        val existing = allApps.firstOrNull { it.packageName == pkg }
+        if (existing != null) {
+            existing.excluded = true
+            persistAndMaybeReconnect()
+            applyFilter(findViewById<EditText>(R.id.searchEditText).text.toString())
+            adapter.notifyDataSetChanged()
+            return
+        }
+
+        val pm = packageManager
+        val appInfo = runCatching { pm.getApplicationInfo(pkg, 0) }.getOrNull()
+        val label = appInfo?.let { runCatching { it.loadLabel(pm).toString() }.getOrNull() } ?: pkg
+        val icon = appInfo?.let { runCatching { it.loadIcon(pm) }.getOrNull() }
+
+        val newEntry = AppEntry(label, pkg, icon, excluded = true)
+        allApps = allApps + newEntry
+        allApps = allApps.sortedBy { it.label.lowercase() }
+        persistAndMaybeReconnect()
+        applyFilter(findViewById<EditText>(R.id.searchEditText).text.toString())
+        Toast.makeText(this, "Aggiunta: $label", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun persistAndMaybeReconnect() {
+        val excludedSet = allApps.filter { it.excluded }.map { it.packageName }.toSet()
+        val saved = tunnelRepository.setExcludedApplications(excludedSet)
+        if (saved && tunnelRepository.currentState() == Tunnel.State.UP) {
+            tunnelRepository.applyState(Tunnel.State.UP)
+        }
     }
 
     private fun onToggle(entry: AppEntry, isExcluded: Boolean) {
