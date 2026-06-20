@@ -84,7 +84,24 @@ class WifiMonitorService : Service() {
     private fun evaluateAndApply() {
         if (!tunnelRepository.isServiceEnabled()) return
 
-        val ssid = getCurrentWifiSsid()
+        val (isOnWifi, ssid) = readWifiState()
+
+        if (isOnWifi && ssid == null) {
+            // Connessi al Wi-Fi ma il nome della rete non è leggibile in
+            // questo momento (capita tipicamente quando lo schermo è
+            // spento/stand-by: Android limita la scansione Wi-Fi per
+            // risparmiare batteria). Non sappiamo se siamo su una rete
+            // fidata o no: non cambiamo nulla, per evitare di accendere il
+            // tunnel per errore. Riproveremo al prossimo evento di rete o
+            // al prossimo controllo periodico (60s).
+            val actualNow = tunnelRepository.currentState()
+            updateNotification(
+                "Rete Wi-Fi rilevata, nome non leggibile al momento (in attesa)",
+                actualNow == Tunnel.State.UP
+            )
+            return
+        }
+
         val isTrusted = ssid != null && trustedNetworksRepository.isTrusted(ssid)
         val desired = if (isTrusted) Tunnel.State.DOWN else Tunnel.State.UP
         // Confrontiamo sempre con lo stato REALE del tunnel (non con un valore
@@ -120,16 +137,16 @@ class WifiMonitorService : Service() {
     }
 
     /**
-     * Legge l'SSID della rete Wi-Fi attualmente connessa.
-     * Richiede il permesso ACCESS_FINE_LOCATION concesso e la posizione
-     * attiva sul dispositivo: è una limitazione imposta da Android stesso,
-     * non da questa app.
+     * Restituisce (siamo su una rete Wi-Fi?, nome della rete o null se non
+     * leggibile in questo momento). Richiede il permesso ACCESS_FINE_LOCATION
+     * concesso e la posizione attiva sul dispositivo: è una limitazione
+     * imposta da Android stesso, non da questa app.
      */
     @Suppress("DEPRECATION")
-    private fun getCurrentWifiSsid(): String? {
-        val network = connectivityManager.activeNetwork ?: return null
-        val caps = connectivityManager.getNetworkCapabilities(network) ?: return null
-        if (!caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) return null
+    private fun readWifiState(): Pair<Boolean, String?> {
+        val network = connectivityManager.activeNetwork ?: return false to null
+        val caps = connectivityManager.getNetworkCapabilities(network) ?: return false to null
+        if (!caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) return false to null
 
         // Su alcuni dispositivi (es. certi Samsung) il metodo "nuovo"
         // (NetworkCapabilities.transportInfo) restituisce sempre
@@ -142,8 +159,8 @@ class WifiMonitorService : Service() {
             (getSystemService(WIFI_SERVICE) as? WifiManager)?.connectionInfo?.ssid
         }
 
-        if (ssid.isNullOrEmpty() || ssid == WifiManager.UNKNOWN_SSID) return null
-        return ssid.removePrefix("\"").removeSuffix("\"")
+        if (ssid.isNullOrEmpty() || ssid == WifiManager.UNKNOWN_SSID) return true to null
+        return true to ssid.removePrefix("\"").removeSuffix("\"")
     }
 
     private fun buildNotification(text: String, vpnUp: Boolean): Notification {

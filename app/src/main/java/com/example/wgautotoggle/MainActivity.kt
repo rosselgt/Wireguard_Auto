@@ -8,11 +8,15 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
+import android.net.Uri
 import android.net.VpnService
 import android.net.wifi.WifiInfo
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
+import android.provider.Settings
+import android.content.Intent
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
@@ -141,6 +145,8 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.manualUpButton).setOnClickListener { manualSetState(Tunnel.State.UP) }
         findViewById<Button>(R.id.manualDownButton).setOnClickListener { manualSetState(Tunnel.State.DOWN) }
         findViewById<TextView>(R.id.diagnosticButton).setOnClickListener { showDiagnostics() }
+        findViewById<Button>(R.id.requestBatteryButton).setOnClickListener { requestIgnoreBatteryOptimizations() }
+        findViewById<Button>(R.id.openAppSettingsButton).setOnClickListener { openAppSettings() }
 
         val recyclerView = findViewById<RecyclerView>(R.id.networksRecyclerView)
         networkAdapter = NetworkAdapter(trustedNetworksRepository.getAll().toMutableList()) { ssid ->
@@ -211,6 +217,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.switchCard).background = pill(R.color.bg_surface, 18f)
         findViewById<View>(R.id.networksCard).background = pill(R.color.bg_surface, 18f)
         findViewById<View>(R.id.configSection).background = pill(R.color.bg_surface, 18f)
+        findViewById<View>(R.id.batteryCard).background = pill(R.color.bg_surface, 18f)
 
         statusDot.background = GradientDrawable().apply {
             shape = GradientDrawable.OVAL
@@ -228,10 +235,14 @@ class MainActivity : AppCompatActivity() {
             background = pill(R.color.accent_protected, 10f)
             setTextColor(ContextCompat.getColor(this@MainActivity, R.color.bg_base))
         }
+        findViewById<Button>(R.id.requestBatteryButton).apply {
+            background = pill(R.color.accent_trusted, 12f)
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.bg_base))
+        }
 
         listOf(
             R.id.manualUpButton, R.id.manualDownButton, R.id.useCurrentSsidButton,
-            R.id.importConfigButton, R.id.scanQrButton
+            R.id.importConfigButton, R.id.scanQrButton, R.id.openAppSettingsButton
         ).forEach { id -> findViewById<Button>(id).background = outlineBackground(R.color.divider, 12f) }
     }
 
@@ -297,10 +308,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     @Suppress("DEPRECATION")
-    private fun getCurrentSsid(): String? {
-        val network = connectivityManager.activeNetwork ?: return null
-        val caps = connectivityManager.getNetworkCapabilities(network) ?: return null
-        if (!caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) return null
+    private fun readWifiState(): Pair<Boolean, String?> {
+        val network = connectivityManager.activeNetwork ?: return false to null
+        val caps = connectivityManager.getNetworkCapabilities(network) ?: return false to null
+        if (!caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) return false to null
 
         val fromCapabilities = (caps.transportInfo as? WifiInfo)?.ssid
         val ssid = if (!fromCapabilities.isNullOrEmpty() && fromCapabilities != WifiManager.UNKNOWN_SSID) {
@@ -309,9 +320,11 @@ class MainActivity : AppCompatActivity() {
             (getSystemService(WIFI_SERVICE) as? WifiManager)?.connectionInfo?.ssid
         }
 
-        if (ssid.isNullOrEmpty() || ssid == WifiManager.UNKNOWN_SSID) return null
-        return ssid.removePrefix("\"").removeSuffix("\"")
+        if (ssid.isNullOrEmpty() || ssid == WifiManager.UNKNOWN_SSID) return true to null
+        return true to ssid.removePrefix("\"").removeSuffix("\"")
     }
+
+    private fun getCurrentSsid(): String? = readWifiState().second
 
     @Suppress("DEPRECATION")
     private fun showDiagnostics() {
@@ -424,7 +437,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateStatus() {
-        val ssid = getCurrentSsid()
+        val (isOnWifi, ssid) = readWifiState()
+        val ambiguous = isOnWifi && ssid == null
         val trusted = ssid != null && trustedNetworksRepository.isTrusted(ssid)
         val realState = tunnelRepository.currentState()
         val serviceEnabled = tunnelRepository.isServiceEnabled()
@@ -435,6 +449,7 @@ class MainActivity : AppCompatActivity() {
         when {
             !serviceEnabled -> { title = "DISATTIVATO"; colorRes = R.color.accent_idle }
             error != null -> { title = "ERRORE"; colorRes = R.color.accent_error }
+            ambiguous -> { title = "VERIFICA IN CORSO"; colorRes = R.color.accent_idle }
             trusted && realState == Tunnel.State.UP ->
                 { title = "ANOMALIA: tunnel attivo su rete fidata"; colorRes = R.color.accent_warning }
             realState == Tunnel.State.UP -> { title = "PROTETTO"; colorRes = R.color.accent_protected }
@@ -444,8 +459,51 @@ class MainActivity : AppCompatActivity() {
         statusTitle.text = title
         (statusDot.background as? GradientDrawable)?.setColor(ContextCompat.getColor(this, colorRes))
 
-        val ssidLine = ssid?.let { "Rete: $it" + if (trusted) " (fidata)" else "" } ?: "Nessuna rete Wi-Fi"
+        val ssidLine = when {
+            ssid != null -> "Rete: $ssid" + if (trusted) " (fidata)" else ""
+            ambiguous -> "Rete Wi-Fi rilevata, nome non leggibile al momento"
+            else -> "Nessuna rete Wi-Fi"
+        }
         val errorLine = error?.let { "\nErrore: $it" } ?: ""
         statusText.text = ssidLine + errorLine
+
+        updateBatteryStatus()
+    }
+
+    private fun updateBatteryStatus() {
+        val powerManager = getSystemService(PowerManager::class.java)
+        val ignoring = powerManager.isIgnoringBatteryOptimizations(packageName)
+        findViewById<TextView>(R.id.batteryStatusText).text = if (ignoring) {
+            "Stato: ottimizzazione batteria Android già disattivata ✓\n(ricontrolla comunque le impostazioni del produttore, es. \"App in sospensione\" su Samsung)"
+        } else {
+            "Stato: l'ottimizzazione batteria Android è ancora attiva\npuò interrompere il monitoraggio in background"
+        }
+    }
+
+    private fun requestIgnoreBatteryOptimizations() {
+        val powerManager = getSystemService(PowerManager::class.java)
+        if (powerManager.isIgnoringBatteryOptimizations(packageName)) {
+            Toast.makeText(this, "Già disattivata per questa app", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+            data = Uri.parse("package:$packageName")
+        }
+        runCatching { startActivity(intent) }.onFailure {
+            Toast.makeText(
+                this,
+                "Non riesco ad aprire la richiesta diretta: vai su Impostazioni > Batteria a mano",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
+    private fun openAppSettings() {
+        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            data = Uri.parse("package:$packageName")
+        }
+        runCatching { startActivity(intent) }.onFailure {
+            Toast.makeText(this, "Non riesco ad aprire le impostazioni dell'app", Toast.LENGTH_SHORT).show()
+        }
     }
 }
