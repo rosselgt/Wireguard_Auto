@@ -276,6 +276,53 @@
                 android:foreground="?attr/selectableItemBackground" />
         </LinearLayout>
 
+        <!-- Risparmio energetico -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
+            android:text="RISPARMIO ENERGETICO"
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp"
+            android:letterSpacing="0.08"
+            android:fontFamily="sans-serif-medium" />
+
+        <LinearLayout
+            android:id="@+id/batteryCard"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp"
+            android:layout_marginTop="8dp">
+
+            <TextView
+                android:id="@+id/batteryStatusText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Stato: -"
+                android:textColor="@color/text_secondary"
+                android:textSize="13sp" />
+
+            <Button
+                android:id="@+id/requestBatteryButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:text="Disattiva ottimizzazione batteria (Android)"
+                android:textAllCaps="false"
+                android:foreground="?attr/selectableItemBackground" />
+
+            <Button
+                android:id="@+id/openAppSettingsButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Apri impostazioni app (per Samsung ecc.)"
+                android:textAllCaps="false"
+                android:textColor="@color/text_primary"
+                android:foreground="?attr/selectableItemBackground" />
+        </LinearLayout>
+
         <TextView
             android:id="@+id/diagnosticButton"
             android:layout_width="wrap_content"
