@@ -43,10 +43,38 @@ class WifiMonitorService : Service() {
         }
     }
 
+    // Piccolo ritardo prima di applicare un cambio di rete: appena il
+    // Wi-Fi si connette, Android può segnalare la rete come "disponibile"
+    // prima che DHCP e le rotte siano del tutto pronte. Aspettando un
+    // momento si evita di creare il tunnel con informazioni di rete non
+    // ancora stabili (causa probabile di problemi nel raggiungere la
+    // rete locale subito dopo la connessione).
+    private val debounceHandler = Handler(Looper.getMainLooper())
+    private val debouncedEvaluate = Runnable { evaluateAndApply() }
+
+    private fun scheduleEvaluate(delayMs: Long) {
+        debounceHandler.removeCallbacks(debouncedEvaluate)
+        debounceHandler.postDelayed(debouncedEvaluate, delayMs)
+    }
+
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
-        override fun onAvailable(network: Network) = evaluateAndApply()
-        override fun onLost(network: Network) = evaluateAndApply()
-        override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) = evaluateAndApply()
+        override fun onAvailable(network: Network) {
+            // Non agiamo già qui: la rete è appena apparsa, aspettiamo che
+            // arrivi la conferma "convalidata" in onCapabilitiesChanged.
+        }
+
+        override fun onLost(network: Network) {
+            // Quando la rete sparisce non c'è nulla da aspettare: agiamo
+            // comunque con un ritardo minimo per evitare scatti durante
+            // passaggi rapidi tra reti (es. handover tra access point).
+            scheduleEvaluate(500L)
+        }
+
+        override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
+            if (caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) {
+                scheduleEvaluate(1_500L)
+            }
+        }
     }
 
     override fun onCreate() {
@@ -72,6 +100,7 @@ class WifiMonitorService : Service() {
 
     override fun onDestroy() {
         periodicHandler.removeCallbacks(periodicCheck)
+        debounceHandler.removeCallbacks(debouncedEvaluate)
         if (registered) {
             runCatching { connectivityManager.unregisterNetworkCallback(networkCallback) }
             registered = false
