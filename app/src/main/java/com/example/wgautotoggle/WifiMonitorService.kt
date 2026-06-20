@@ -110,19 +110,26 @@ class WifiMonitorService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    private fun evaluateAndApply() {
+    private fun evaluateAndApply(retriesLeft: Int = 3) {
         if (!tunnelRepository.isServiceEnabled()) return
 
         val (isOnWifi, ssid) = readWifiState()
 
         if (isOnWifi && ssid == null) {
-            // Connessi al Wi-Fi ma il nome della rete non è leggibile in
-            // questo momento (capita tipicamente quando lo schermo è
-            // spento/stand-by: Android limita la scansione Wi-Fi per
-            // risparmiare batteria). Non sappiamo se siamo su una rete
-            // fidata o no: non cambiamo nulla, per evitare di accendere il
-            // tunnel per errore. Riproveremo al prossimo evento di rete o
-            // al prossimo controllo periodico (60s).
+            if (retriesLeft > 0) {
+                // Subito dopo un cambio di rete il nome può non essere ancora
+                // leggibile per un istante: ritentiamo a breve invece di
+                // arrenderci subito, senza bloccare il thread principale.
+                debounceHandler.postDelayed({ evaluateAndApply(retriesLeft - 1) }, 400L)
+                return
+            }
+            // Connessi al Wi-Fi ma il nome della rete non è leggibile
+            // nemmeno dopo i tentativi (capita tipicamente quando lo
+            // schermo è spento/stand-by: Android limita la scansione
+            // Wi-Fi per risparmiare batteria). Non sappiamo se siamo su
+            // una rete fidata o no: non cambiamo nulla, per evitare di
+            // accendere il tunnel per errore. Riproveremo al prossimo
+            // evento di rete o al prossimo controllo periodico (60s).
             val actualNow = tunnelRepository.currentState()
             updateNotification(
                 "Rete Wi-Fi rilevata, nome non leggibile al momento (in attesa)",

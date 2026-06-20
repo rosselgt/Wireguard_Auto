@@ -286,6 +286,43 @@
                 android:foreground="?attr/selectableItemBackground" />
         </LinearLayout>
 
+        <!-- Permessi -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
+            android:text="PERMESSI"
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp"
+            android:letterSpacing="0.08"
+            android:fontFamily="sans-serif-medium" />
+
+        <LinearLayout
+            android:id="@+id/permissionsCard"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp"
+            android:layout_marginTop="8dp">
+
+            <TextView
+                android:id="@+id/locationStatusText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Posizione: -"
+                android:textColor="@color/text_secondary"
+                android:textSize="13sp" />
+
+            <Button
+                android:id="@+id/requestAlwaysLocationButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:text="Imposta posizione su &quot;Consenti sempre&quot;"
+                android:textAllCaps="false"
+                android:foreground="?attr/selectableItemBackground" />
+        </LinearLayout>
+
         <!-- Risparmio energetico -->
         <TextView
             android:layout_width="wrap_content"

@@ -150,6 +150,14 @@ class MainActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.diagnosticButton).setOnClickListener { showDiagnostics() }
         findViewById<Button>(R.id.requestBatteryButton).setOnClickListener { requestIgnoreBatteryOptimizations() }
         findViewById<Button>(R.id.openAppSettingsButton).setOnClickListener { openAppSettings() }
+        findViewById<Button>(R.id.requestAlwaysLocationButton).setOnClickListener {
+            Toast.makeText(
+                this,
+                "Nelle impostazioni che si aprono, tocca Permessi > Posizione > Consenti sempre",
+                Toast.LENGTH_LONG
+            ).show()
+            openAppSettings()
+        }
 
         val recyclerView = findViewById<RecyclerView>(R.id.networksRecyclerView)
         networkAdapter = NetworkAdapter(trustedNetworksRepository.getAll().toMutableList()) { ssid ->
@@ -223,6 +231,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.networksCard).background = pill(R.color.bg_surface, 18f)
         findViewById<View>(R.id.configSection).background = pill(R.color.bg_surface, 18f)
         findViewById<View>(R.id.batteryCard).background = pill(R.color.bg_surface, 18f)
+        findViewById<View>(R.id.permissionsCard).background = pill(R.color.bg_surface, 18f)
 
         statusDot.background = GradientDrawable().apply {
             shape = GradientDrawable.OVAL
@@ -247,7 +256,8 @@ class MainActivity : AppCompatActivity() {
 
         listOf(
             R.id.manualUpButton, R.id.manualDownButton, R.id.useCurrentSsidButton,
-            R.id.importConfigButton, R.id.scanQrButton, R.id.openAppSettingsButton, R.id.excludeAppsButton
+            R.id.importConfigButton, R.id.scanQrButton, R.id.openAppSettingsButton,
+            R.id.excludeAppsButton, R.id.requestAlwaysLocationButton
         ).forEach { id -> findViewById<Button>(id).background = outlineBackground(R.color.divider, 12f) }
     }
 
@@ -490,6 +500,25 @@ class MainActivity : AppCompatActivity() {
         statusText.text = ssidLine + errorLine
 
         updateBatteryStatus()
+        updateLocationStatus()
+    }
+
+    private fun updateLocationStatus() {
+        val fineGranted = checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED
+        val alwaysGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            checkSelfPermission(android.Manifest.permission.ACCESS_BACKGROUND_LOCATION) ==
+                PackageManager.PERMISSION_GRANTED
+        } else {
+            true // Prima di Android 10 non esiste questa distinzione
+        }
+
+        findViewById<TextView>(R.id.locationStatusText).text = when {
+            !fineGranted -> "Posizione: permesso non concesso ← attivalo dalle impostazioni dell'app"
+            alwaysGranted -> "Posizione: \"Consenti sempre\" ✓"
+            else -> "Posizione: \"Solo se in uso\" — su alcuni telefoni (es. Samsung) questo può" +
+                " far perdere il nome della rete Wi-Fi quando l'app non è in primo piano"
+        }
     }
 
     private fun updateBatteryStatus() {
