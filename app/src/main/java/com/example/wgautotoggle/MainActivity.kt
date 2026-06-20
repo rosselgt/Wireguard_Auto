@@ -5,7 +5,9 @@ import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.location.LocationManager
 import android.net.ConnectivityManager
+import android.net.Network
 import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.net.VpnService
 import android.net.wifi.WifiInfo
 import android.net.wifi.WifiManager
@@ -23,6 +25,8 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanOptions
 import com.wireguard.android.backend.Tunnel
 import com.wireguard.config.Config
 import java.io.ByteArrayInputStream
@@ -32,6 +36,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tunnelRepository: TunnelRepository
     private lateinit var trustedNetworksRepository: TrustedNetworksRepository
     private lateinit var networkAdapter: NetworkAdapter
+    private lateinit var connectivityManager: ConnectivityManager
 
     private lateinit var configEditText: EditText
     private lateinit var enabledSwitch: Switch
@@ -39,6 +44,17 @@ class MainActivity : AppCompatActivity() {
     private lateinit var statusTitle: TextView
     private lateinit var statusDot: View
     private lateinit var ssidEditText: EditText
+
+    private var uiCallbackRegistered = false
+
+    // Aggiorna la schermata in tempo reale ad ogni cambio di rete, senza
+    // bisogno di chiudere e riaprire l'app o toccare un pulsante.
+    private val uiNetworkCallback = object : ConnectivityManager.NetworkCallback() {
+        override fun onAvailable(network: Network) = runOnUiThread { updateStatus() }
+        override fun onLost(network: Network) = runOnUiThread { updateStatus() }
+        override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) =
+            runOnUiThread { updateStatus() }
+    }
 
     private val vpnPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -76,12 +92,23 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private val qrScanLauncher = registerForActivityResult(ScanContract()) { result ->
+        if (result.contents != null) {
+            configEditText.setText(result.contents)
+            expandConfigSection()
+            Toast.makeText(this, "QR letto: controlla il testo e tocca Salva", Toast.LENGTH_LONG).show()
+        } else {
+            Toast.makeText(this, "Scansione annullata", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
         tunnelRepository = TunnelRepository.getInstance(applicationContext)
         trustedNetworksRepository = TrustedNetworksRepository(applicationContext)
+        connectivityManager = getSystemService(ConnectivityManager::class.java)
 
         configEditText = findViewById(R.id.configEditText)
         enabledSwitch = findViewById(R.id.enabledSwitch)
@@ -95,22 +122,20 @@ class MainActivity : AppCompatActivity() {
         configEditText.setText(tunnelRepository.getConfigText().orEmpty())
         enabledSwitch.isChecked = tunnelRepository.isServiceEnabled()
 
-        val configSection = findViewById<View>(R.id.configSection)
-        val configArrow = findViewById<TextView>(R.id.configToggleArrow)
         if (!tunnelRepository.hasValidConfig()) {
-            configSection.visibility = View.VISIBLE
-            configArrow.text = "▾"
+            expandConfigSection()
         }
         findViewById<View>(R.id.configHeader).setOnClickListener {
+            val configSection = findViewById<View>(R.id.configSection)
             val expanded = configSection.visibility == View.VISIBLE
-            configSection.visibility = if (expanded) View.GONE else View.VISIBLE
-            configArrow.text = if (expanded) "▸" else "▾"
+            if (expanded) collapseConfigSection() else expandConfigSection()
         }
 
         findViewById<Button>(R.id.saveConfigButton).setOnClickListener { saveConfig() }
         findViewById<Button>(R.id.importConfigButton).setOnClickListener {
             openConfigLauncher.launch("*/*")
         }
+        findViewById<Button>(R.id.scanQrButton).setOnClickListener { scanQrCode() }
         findViewById<Button>(R.id.addSsidButton).setOnClickListener { addSsidFromInput() }
         findViewById<Button>(R.id.useCurrentSsidButton).setOnClickListener { useCurrentSsid() }
         findViewById<Button>(R.id.manualUpButton).setOnClickListener { manualSetState(Tunnel.State.UP) }
@@ -134,7 +159,32 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+
+        // Forza una verifica immediata del servizio in background: così se il
+        // telefono è stato in stand-by e lo stato si era disallineato (es. dal
+        // risparmio energetico del produttore), riaprendo l'app si corregge
+        // subito, senza aspettare il controllo periodico.
+        if (tunnelRepository.isServiceEnabled()) {
+            WifiMonitorService.start(this)
+        }
+
+        if (!uiCallbackRegistered) {
+            val request = NetworkRequest.Builder()
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                .build()
+            runCatching { connectivityManager.registerNetworkCallback(request, uiNetworkCallback) }
+            uiCallbackRegistered = true
+        }
+
         updateStatus()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        if (uiCallbackRegistered) {
+            runCatching { connectivityManager.unregisterNetworkCallback(uiNetworkCallback) }
+            uiCallbackRegistered = false
+        }
     }
 
     // ---- Stile (sfondi arrotondati creati a runtime, niente drawable XML) ----
@@ -179,11 +229,34 @@ class MainActivity : AppCompatActivity() {
             setTextColor(ContextCompat.getColor(this@MainActivity, R.color.bg_base))
         }
 
-        listOf(R.id.manualUpButton, R.id.manualDownButton, R.id.useCurrentSsidButton, R.id.importConfigButton)
-            .forEach { id -> findViewById<Button>(id).background = outlineBackground(R.color.divider, 12f) }
+        listOf(
+            R.id.manualUpButton, R.id.manualDownButton, R.id.useCurrentSsidButton,
+            R.id.importConfigButton, R.id.scanQrButton
+        ).forEach { id -> findViewById<Button>(id).background = outlineBackground(R.color.divider, 12f) }
+    }
+
+    // ---- Sezione configurazione (richiudibile) ----
+
+    private fun expandConfigSection() {
+        findViewById<View>(R.id.configSection).visibility = View.VISIBLE
+        findViewById<TextView>(R.id.configToggleArrow).text = "▾"
+    }
+
+    private fun collapseConfigSection() {
+        findViewById<View>(R.id.configSection).visibility = View.GONE
+        findViewById<TextView>(R.id.configToggleArrow).text = "▸"
     }
 
     // ---- Logica ----
+
+    private fun scanQrCode() {
+        val options = ScanOptions()
+        options.setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+        options.setPrompt("Inquadra il QR della configurazione WireGuard")
+        options.setBeepEnabled(false)
+        options.setOrientationLocked(true)
+        qrScanLauncher.launch(options)
+    }
 
     private fun saveConfig() {
         val text = configEditText.text.toString()
@@ -225,9 +298,8 @@ class MainActivity : AppCompatActivity() {
 
     @Suppress("DEPRECATION")
     private fun getCurrentSsid(): String? {
-        val cm = getSystemService(ConnectivityManager::class.java)
-        val network = cm.activeNetwork ?: return null
-        val caps = cm.getNetworkCapabilities(network) ?: return null
+        val network = connectivityManager.activeNetwork ?: return null
+        val caps = connectivityManager.getNetworkCapabilities(network) ?: return null
         if (!caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) return null
 
         val fromCapabilities = (caps.transportInfo as? WifiInfo)?.ssid
@@ -255,12 +327,11 @@ class MainActivity : AppCompatActivity() {
         sb.append("2) Posizione attiva nel sistema: ")
         sb.append(if (locationEnabled) "SÌ\n" else "NO ← da correggere\n")
 
-        val cm = getSystemService(ConnectivityManager::class.java)
-        val network = cm.activeNetwork
+        val network = connectivityManager.activeNetwork
         sb.append("3) Rete attiva sul telefono: ")
         sb.append(if (network != null) "presente\n" else "NESSUNA (Wi-Fi spento o non connesso)\n")
 
-        val caps = network?.let { cm.getNetworkCapabilities(it) }
+        val caps = network?.let { connectivityManager.getNetworkCapabilities(it) }
         val isWifi = caps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ?: false
         sb.append("4) La rete attiva è Wi-Fi: ")
         sb.append(if (isWifi) "SÌ\n" else "NO (probabilmente dati mobili)\n")
@@ -367,7 +438,7 @@ class MainActivity : AppCompatActivity() {
             trusted && realState == Tunnel.State.UP ->
                 { title = "ANOMALIA: tunnel attivo su rete fidata"; colorRes = R.color.accent_warning }
             realState == Tunnel.State.UP -> { title = "PROTETTO"; colorRes = R.color.accent_protected }
-            trusted -> { title = "RETE FIDATA"; colorRes = R.color.accent_idle }
+            trusted -> { title = "RETE FIDATA"; colorRes = R.color.accent_trusted }
             else -> { title = "IN ATTESA"; colorRes = R.color.accent_warning }
         }
         statusTitle.text = title

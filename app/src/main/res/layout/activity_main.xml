@@ -264,6 +264,16 @@
                     android:textColor="@color/text_primary"
                     android:foreground="?attr/selectableItemBackground" />
             </LinearLayout>
+
+            <Button
+                android:id="@+id/scanQrButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="📷 Scansiona QR code"
+                android:textAllCaps="false"
+                android:textColor="@color/text_primary"
+                android:foreground="?attr/selectableItemBackground" />
         </LinearLayout>
 
         <TextView

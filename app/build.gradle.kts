@@ -44,6 +44,9 @@ dependencies {
     // Storage cifrato per la configurazione WireGuard (contiene la chiave privata)
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
 
+    // Scansione QR per importare la configurazione WireGuard
+    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
+
     // Richiesta dalla libreria WireGuard per le API Java 8+ su minSdk più vecchie
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
 }

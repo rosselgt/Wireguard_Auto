@@ -5,6 +5,7 @@
     <color name="text_primary">#EAF0F3</color>
     <color name="text_secondary">#8FA3AF</color>
     <color name="accent_protected">#3DDC97</color>
+    <color name="accent_trusted">#3B9DE3</color>
     <color name="accent_idle">#5B7A8C</color>
     <color name="accent_warning">#F2B84B</color>
     <color name="accent_error">#E0566B</color>
