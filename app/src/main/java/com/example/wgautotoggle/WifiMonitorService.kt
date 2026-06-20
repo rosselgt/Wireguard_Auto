@@ -13,7 +13,9 @@ import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.net.wifi.WifiInfo
 import android.net.wifi.WifiManager
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.util.Log
 import com.wireguard.android.backend.Tunnel
 
@@ -31,8 +33,15 @@ class WifiMonitorService : Service() {
     private lateinit var tunnelRepository: TunnelRepository
     private lateinit var trustedNetworksRepository: TrustedNetworksRepository
 
-    private var lastAppliedState: Tunnel.State? = null
     private var registered = false
+
+    private val periodicHandler = Handler(Looper.getMainLooper())
+    private val periodicCheck = object : Runnable {
+        override fun run() {
+            evaluateAndApply()
+            periodicHandler.postDelayed(this, 60_000L)
+        }
+    }
 
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) = evaluateAndApply()
@@ -46,6 +55,7 @@ class WifiMonitorService : Service() {
         tunnelRepository = TunnelRepository.getInstance(applicationContext)
         trustedNetworksRepository = TrustedNetworksRepository(applicationContext)
         startForeground(NOTIFICATION_ID, buildNotification("In attesa di una rete...", false))
+        periodicHandler.postDelayed(periodicCheck, 60_000L)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -61,6 +71,7 @@ class WifiMonitorService : Service() {
     }
 
     override fun onDestroy() {
+        periodicHandler.removeCallbacks(periodicCheck)
         if (registered) {
             runCatching { connectivityManager.unregisterNetworkCallback(networkCallback) }
             registered = false
@@ -76,6 +87,11 @@ class WifiMonitorService : Service() {
         val ssid = getCurrentWifiSsid()
         val isTrusted = ssid != null && trustedNetworksRepository.isTrusted(ssid)
         val desired = if (isTrusted) Tunnel.State.DOWN else Tunnel.State.UP
+        // Confrontiamo sempre con lo stato REALE del tunnel (non con un valore
+        // "ricordato"): così un tocco manuale su "Attiva/Disattiva ora", un
+        // riavvio del telefono o qualsiasi altra causa di disallineamento si
+        // autocorregge automaticamente al prossimo cambio di rete.
+        val actual = tunnelRepository.currentState()
 
         val label = when {
             ssid != null && isTrusted -> "Rete fidata: $ssid"
@@ -83,25 +99,22 @@ class WifiMonitorService : Service() {
             else -> "Nessuna rete Wi-Fi"
         }
 
-        if (desired == lastAppliedState) {
-            updateNotification(label, desired == Tunnel.State.UP)
+        if (desired == actual) {
+            updateNotification(label, actual == Tunnel.State.UP)
             return
         }
         if (!tunnelRepository.hasValidConfig()) {
-            updateNotification("$label (nessuna configurazione salvata)", false)
+            updateNotification("$label (nessuna configurazione salvata)", actual == Tunnel.State.UP)
             return
         }
 
         updateNotification("$label - applicazione in corso...", desired == Tunnel.State.UP)
-        lastAppliedState = desired
         tunnelRepository.applyState(desired) { success, error ->
             if (success) {
                 updateNotification(label, desired == Tunnel.State.UP)
             } else {
                 Log.e(TAG, "Impossibile impostare lo stato $desired: $error")
-                // Riprova al prossimo cambio di rete
-                lastAppliedState = null
-                updateNotification("$label - ERRORE: $error", false)
+                updateNotification("$label - ERRORE: $error", actual == Tunnel.State.UP)
             }
         }
     }

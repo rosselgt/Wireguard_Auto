@@ -183,7 +183,7 @@ class MainActivity : AppCompatActivity() {
             .forEach { id -> findViewById<Button>(id).background = outlineBackground(R.color.divider, 12f) }
     }
 
-    // ---- Logica (invariata rispetto alla versione precedente) ----
+    // ---- Logica ----
 
     private fun saveConfig() {
         val text = configEditText.text.toString()
@@ -364,6 +364,8 @@ class MainActivity : AppCompatActivity() {
         when {
             !serviceEnabled -> { title = "DISATTIVATO"; colorRes = R.color.accent_idle }
             error != null -> { title = "ERRORE"; colorRes = R.color.accent_error }
+            trusted && realState == Tunnel.State.UP ->
+                { title = "ANOMALIA: tunnel attivo su rete fidata"; colorRes = R.color.accent_warning }
             realState == Tunnel.State.UP -> { title = "PROTETTO"; colorRes = R.color.accent_protected }
             trusted -> { title = "RETE FIDATA"; colorRes = R.color.accent_idle }
             else -> { title = "IN ATTESA"; colorRes = R.color.accent_warning }
