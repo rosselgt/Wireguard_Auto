@@ -152,6 +152,8 @@ class MainActivity : AppCompatActivity() {
         networkAdapter = NetworkAdapter(trustedNetworksRepository.getAll().toMutableList()) { ssid ->
             trustedNetworksRepository.remove(ssid)
             networkAdapter.submitList(trustedNetworksRepository.getAll())
+            refreshServiceIfEnabled()
+            updateStatus()
         }
         recyclerView.layoutManager = LinearLayoutManager(this)
         recyclerView.adapter = networkAdapter
@@ -291,6 +293,8 @@ class MainActivity : AppCompatActivity() {
         trustedNetworksRepository.add(ssid)
         networkAdapter.submitList(trustedNetworksRepository.getAll())
         ssidEditText.setText("")
+        refreshServiceIfEnabled()
+        updateStatus()
     }
 
     private fun useCurrentSsid() {
@@ -305,6 +309,21 @@ class MainActivity : AppCompatActivity() {
         }
         trustedNetworksRepository.add(ssid)
         networkAdapter.submitList(trustedNetworksRepository.getAll())
+        refreshServiceIfEnabled()
+        updateStatus()
+    }
+
+    /**
+     * Dice subito al servizio in background di ricontrollare la situazione,
+     * invece di aspettare il prossimo cambio di rete o il controllo
+     * periodico (60s). Serve quando si aggiunge/rimuove una rete fidata
+     * mentre si è già connessi a quella rete: lo stato del tunnel deve
+     * aggiornarsi all'istante, non dopo un minuto.
+     */
+    private fun refreshServiceIfEnabled() {
+        if (tunnelRepository.isServiceEnabled()) {
+            WifiMonitorService.start(this)
+        }
     }
 
     @Suppress("DEPRECATION")
